@@ -1,4 +1,4 @@
-# Modules in v0.2.0
+# Modules in v0.3.0
 
 MONAI aims at supporting deep learning in medical image analysis at multiple granularities.
 This figure shows a typical example of the end-to-end workflow in medical deep learning area:
@@ -12,7 +12,7 @@ The design principle of MONAI is to provide flexible and light APIs for users wi
 4. Researchers contribute implementations based on the state-of-the-art for the latest research challenges, including COVID-19 image analysis, Model Parallel, etc.
 
 The overall architecture and modules are shown in the following figure:
-![image](../images/arch_modules_v0.2.png)
+![image](../images/arch_modules_v0.3.png)
 The rest of this page provides more details for each module.
 
 * [Data I/O, processing and augmentation](#medical-image-data-io-processing-and-augmentation)
@@ -47,7 +47,7 @@ transformations. These currently include, for example:
 - `Rand2DElastic`: Random elastic deformation and affine in 2D
 - `Rand3DElastic`: Random elastic deformation and affine in 3D
 
-[2D transforms tutorial](https://github.com/Project-MONAI/Tutorials/blob/master/transforms_demo_2d.ipynb) shows the detailed usage of several MONAI medical image specific transforms.
+[2D transforms tutorial](https://github.com/Project-MONAI/tutorials/blob/master/modules/transforms_demo_2d.ipynb) shows the detailed usage of several MONAI medical image specific transforms.
 ![image](../images/medical_transforms.png)
 
 ### 3. Fused spatial transforms and GPU acceleration
@@ -66,13 +66,13 @@ affine = Affine(
 # convert the image using bilinear interpolation
 new_img = affine(image, spatial_size=(300, 400), mode='bilinear')
 ```
-Experiments and test results are available at [Fused transforms test](https://github.com/Project-MONAI/Tutorials/blob/master/transform_speed.ipynb).
+Experiments and test results are available at [Fused transforms test](https://github.com/Project-MONAI/tutorials/blob/master/acceleration/transform_speed.ipynb).
 
-Currently all the geometric image transforms (Spacing, Zoom, Rotate, Resize, etc.) are designed based on the PyTorch native interfaces. [Geometric transforms tutorial](https://github.com/Project-MONAI/Tutorials/blob/master/3d_image_transforms.ipynb) indicates the usage of affine transforms with 3D medical images.
+Currently all the geometric image transforms (Spacing, Zoom, Rotate, Resize, etc.) are designed based on the PyTorch native interfaces. [Geometric transforms tutorial](https://github.com/Project-MONAI/tutorials/blob/master/modules/3d_image_transforms.ipynb) indicates the usage of affine transforms with 3D medical images.
 ![image](../images/affine.png)
 
 ### 4. Randomly crop out batch images based on positive/negative ratio
-Medical image data volume may be too large to fit into GPU memory. A widely-used approach is to randomly draw small size data samples during training and run a “sliding window” routine for inference.  MONAI currently provides general random sampling strategies including class-balanced fixed ratio sampling which may help stabilize the patch-based training process. A typical example is in [Spleen 3D segmentation tutorial](https://github.com/Project-MONAI/Tutorials/blob/master/spleen_segmentation_3d.ipynb), which achieves the class-balanced sampling with `RandCropByPosNegLabel` transform.
+Medical image data volume may be too large to fit into GPU memory. A widely-used approach is to randomly draw small size data samples during training and run a “sliding window” routine for inference.  MONAI currently provides general random sampling strategies including class-balanced fixed ratio sampling which may help stabilize the patch-based training process. A typical example is in [Spleen 3D segmentation tutorial](https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/spleen_segmentation_3d.ipynb), which achieves the class-balanced sampling with `RandCropByPosNegLabel` transform.
 
 ### 5. Deterministic training for reproducibility
 Deterministic training support is necessary and important for deep learning research, especially in the medical field. Users can easily set the random seed to all the random transforms in MONAI locally and will not affect other non-deterministic modules in the user's program.
@@ -110,26 +110,46 @@ MONAI also provides post-processing transforms for handling the model outputs. C
 - Removing segmentation noise based on Connected Component Analysis, as below figure (c).
 - Extracting contour of segmentation result, which can be used to map to original image and evaluate the model, as below figure (d) and (e).
 
-After applying the post-processing transforms, it's easier to compute metrics, save model output into files or visualize data in the TensorBoard. [Post transforms tutorial](https://github.com/Project-MONAI/Tutorials/blob/master/post_transforms.ipynb) shows an example with several main post transforms.
+After applying the post-processing transforms, it's easier to compute metrics, save model output into files or visualize data in the TensorBoard. [Post transforms tutorial](https://github.com/Project-MONAI/tutorials/blob/master/modules/post_transforms.ipynb) shows an example with several main post transforms.
 ![image](../images/post_transforms.png)
 
 ### 9. Integrate third-party transforms
 The design of MONAI transforms emphasis code readability and usability. It works for array data or dictionary-based data. MONAI also provides `Adaptor` tools to accommodate different data format for 3rd party transforms. To convert the data shapes or types, utility transforms such as `ToTensor`, `ToNumpy`, `SqueezeDim` are also provided. So it's easy to enhance the transform chain by seamlessly integrating transforms from external packages, including: `ITK`, `BatchGenerator`, `TorchIO` and `Rising`.
 
-For more details, please check out the tutorial: [integrate 3rd party transforms into MONAI program](https://github.com/Project-MONAI/Tutorials/blob/master/integrate_3rd_party_transforms.ipynb).
+For more details, please check out the tutorial: [integrate 3rd party transforms into MONAI program](https://github.com/Project-MONAI/tutorials/blob/master/modules/integrate_3rd_party_transforms.ipynb).
+
+### 10. IO factory for medical image formats
+Many popular image formats exist in the medical domain, and they are quite different with rich meta data information. To easily handle different medical image formats in the same pipeline, MONAI provides `LoadImage` transform, which uses `ITKReader` as the default image reader and also supports to register other readers, like `NibabelReader`, `NumpyReader`, and `PILReader`. The `ImageReader` API is quite straight-forward, users can easily extend for their own customized image readers.
+
+With these pre-defined image readers, MONAI can load images in formats: `NIfTI`, `DICOM`, `PNG`, `JPG`, `BMP`, `NPY/NPZ`, etc.
 
 ## Datasets
 ### 1. Cache IO and transforms data to accelerate training
 Users often need to train the model with many (potentially thousands of) epochs over the data to achieve the desired model quality. A native PyTorch implementation may repeatedly load data and run the same preprocessing steps for every epoch during training, which can be time-consuming and unnecessary, especially when the medical image volumes are large.
 
-MONAI provides a multi-threads `CacheDataset` to accelerate these transformation steps during training by storing the intermediate outcomes before the first randomized transform in the transform chain. Enabling this feature could potentially give 10x training speedups in the [Datasets experiment](https://github.com/Project-MONAI/Tutorials/blob/master/dataset_type_performance.ipynb).
+MONAI provides a multi-threads `CacheDataset` to accelerate these transformation steps during training by storing the intermediate outcomes before the first randomized transform in the transform chain. Enabling this feature could potentially give 10x training speedups in the [Datasets experiment](https://github.com/Project-MONAI/tutorials/blob/master/acceleration/dataset_type_performance.ipynb).
 ![image](../images/cache_dataset.png)
 
 ### 2. Cache intermediate outcomes into persistent storage
-The `PersistentDataset` is similar to the CacheDataset, where the intermediate cache values are persisted to disk storage for rapid retrieval between experimental runs (as is the case when tuning hyperparameters), or when the entire data set size exceeds available memory. The `PersistentDataset` could achieve similar performance when comparing to `CacheDataset` in [Datasets experiment](https://github.com/Project-MONAI/Tutorials/blob/master/dataset_type_performance.ipynb).
+The `PersistentDataset` is similar to the CacheDataset, where the intermediate cache values are persisted to disk storage for rapid retrieval between experimental runs (as is the case when tuning hyperparameters), or when the entire data set size exceeds available memory. The `PersistentDataset` could achieve similar performance when comparing to `CacheDataset` in [Datasets experiment](https://github.com/Project-MONAI/tutorials/blob/master/acceleration/dataset_type_performance.ipynb).
 ![image](../images/datasets_speed.png)
 
-### 3. Zip multiple PyTorch datasets and fuse the output
+### 3. SmartCache mechanism for big datasets
+During training with very big volume dataset, an efficient approach is to only train with a subset of the dataset in an epoch and dynamically replace part of the subset in every epoch. It's the `SmartCache` mechanism in [NVIDIA Clara-train SDK](https://docs.nvidia.com/clara/tlt-mi/clara-train-sdk-v3.0/nvmidl/additional_features/smart_cache.html#smart-cache).
+
+MONAI provides a PyTorch version `SmartCache` as `SmartCacheDataset`. In each epoch, only the items in the cache are used for training, at the same time, another thread is preparing replacement items by applying the transform sequence to items not in cache. Once one epoch is completed, `SmartCache` replaces the same number of items with replacement items.
+
+For example, if we have 5 images: `[image1, image2, image3, image4, image5]`, and `cache_num=4`, `replace_rate=0.25`. So the actual training images cached and replaced for every epoch are as below:
+```
+epoch 1: [image1, image2, image3, image4]
+epoch 2: [image2, image3, image4, image5]
+epoch 3: [image3, image4, image5, image1]
+epoch 3: [image4, image5, image1, image2]
+epoch N: [image[N % 5] ...]
+```
+Full example of `SmartCacheDataset` is available at [Distributed training with SmartCache](https://github.com/Project-MONAI/tutorials/blob/master/acceleration/distributed_training/unet_training_smartcache.py).
+
+### 4. Zip multiple PyTorch datasets and fuse the output
 MONAI provides `ZipDataset` to associate multiple PyTorch datasets and combine the output data (with the same corresponding batch index) into a tuple, which can be helpful to execute complex training processes based on various data sources.
 
 For example:
@@ -145,10 +165,10 @@ class DatasetB(Dataset):
 dataset = ZipDataset([DatasetA(), DatasetB()], transform)
 ```
 
-### 4. Predefined Datasets for public medical data
-To quickly get started with popular training data in the medical domain, MONAI provides several data-specific Datasets(like: `MedNISTDataset`, `DecathlonDataset`, etc.), which include downloading, extracting data files and support generation of training/evaluation items with transforms. And they are flexible that users can easily modify the JSON config file to change the default behaviors.
+### 5. Predefined Datasets for public medical data
+To quickly get started with popular training data in the medical domain, MONAI provides several data-specific Datasets(like: `MedNISTDataset`, `DecathlonDataset`, etc.), which include downloading from our AWS storage, extracting data files and support generation of training/evaluation items with transforms. And they are flexible that users can easily modify the JSON config file to change the default behaviors.
 
-MONAI always welcome new contributions of public datasets, please refer to existing Datasets and leverage the download and extracting APIs, etc. [Public datasets tutorial](https://github.com/Project-MONAI/Tutorials/blob/master/public_datasets.ipynb) indicates how to quickly set up training workflows with `MedNISTDataset` and `DecathlonDataset` and how to create a new `Dataset` for public data.
+MONAI always welcome new contributions of public datasets, please refer to existing Datasets and leverage the download and extracting APIs, etc. [Public datasets tutorial](https://github.com/Project-MONAI/tutorials/blob/master/modules/public_datasets.ipynb) indicates how to quickly set up training workflows with `MedNISTDataset` and `DecathlonDataset` and how to create a new `Dataset` for public data.
 
 The common workflow of predefined datasets:
 ![image](../images/dataset_progress.png)
@@ -172,7 +192,7 @@ name, dimension = Conv.CONVTRANS, 3
 conv_type = Conv[name, dimension]
 add_module('conv1', conv_type(in_channels, out_channels, kernel_size=1, bias=False))
 ```
-And there are several 1D/2D/3D-compatible implementations of intermediate blocks and generic networks, such as UNet, DenseNet, GAN.
+And there are several 1D/2D/3D-compatible implementations of intermediate blocks and generic networks, such as UNet, DynUNet, DenseNet, GAN, AHNet, VNet, SENet(and SEResNet, SEResNeXt), SegResNet, etc.
 
 ## Evaluation
 To run model inferences and evaluate the model quality, MONAI provides reference implementations for the relevant widely-used approaches. Currently, several popular evaluation metrics and inference patterns are included:
@@ -187,13 +207,15 @@ A typical process is:
 4. Save the results to file or compute some evaluation metrics.
 ![image](../images/sliding_window.png)
 
-The [Spleen 3D segmentation tutorial](https://github.com/Project-MONAI/Tutorials/blob/master/spleen_segmentation_3d.ipynb) leverages `SlidingWindow` inference for validation.
+The [Spleen 3D segmentation tutorial](https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/spleen_segmentation_3d.ipynb) leverages `SlidingWindow` inference for validation.
 
 ### 2. Metrics for medical tasks
-Various useful evaluation metrics have been used to measure the quality of medical image specific models. MONAI already implemented mean Dice score for segmentation tasks and the area under the ROC curve for classification tasks. We continue to integrate more options.
+Various useful evaluation metrics have been used to measure the quality of medical image specific models. MONAI already implemented many medical domain-specific metrics, such as: `Mean Dice`, `ROCAUC`, `Confusion Matrices`, `Hausdorff Distance`, `Surface Distance`, etc.
+
+For example, `Mean Dice` score can be used for segmentation tasks and the area under the ROC curve(`ROCAUC`) for classification tasks. We continue to integrate more options.
 
 ## Visualization
-Beyond the simple point and curve plotting, MONAI provides intuitive interfaces to visualize multidimensional data as GIF animations in TensorBoard. This could provide a quick qualitative assessment of the model by visualizing, for example, the volumetric inputs, segmentation maps, and intermediate feature maps. A runnable example with visualization is available at [UNet training example](https://github.com/Project-MONAI/MONAI/blob/master/examples/segmentation_3d/unet_training_dict.py).
+Beyond the simple point and curve plotting, MONAI provides intuitive interfaces to visualize multidimensional data as GIF animations in TensorBoard. This could provide a quick qualitative assessment of the model by visualizing, for example, the volumetric inputs, segmentation maps, and intermediate feature maps. A runnable example with visualization is available at [UNet training example](https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/torch/unet_training_dict.py).
 
 ## Result writing
 Currently MONAI supports writing the model outputs as NIfTI files or PNG files for segmentation tasks, and as CSV files for classification tasks. And the writers can restore the data spacing, orientation or shape according to the `original_shape` or `original_affine` information from the input image.
@@ -206,10 +228,21 @@ To quickly set up training and evaluation experiments, MONAI provides a set of w
 These features decouple the domain-specific components and the generic machine learning processes. They also provide a set of unify APIs for higher level applications (such as AutoML, Federated Learning).
 The trainers and evaluators of the workflows are compatible with pytorch-ignite `Engine` and `Event-Handler` mechanism. There are rich event handlers in MONAI to independently attach to the trainer or evaluator.
 
+### 1. General workflows pipeline
 The workflow and event handlers are shown as below:
 ![image](../images/workflows.png)
 
-The end-to-end training and evaluation examples are available at [Workflow examples](https://github.com/Project-MONAI/MONAI/tree/master/examples/workflows).
+The end-to-end training and evaluation examples are available at [Workflow examples](https://github.com/Project-MONAI/tutorials/tree/master/modules/workflows).
+
+### 2. EnsembleEvaluator
+Models ensemble is a popular strategy in machine learning and deep learning areas to achieve more accurate and more stable outputs. A typical practice is:
+1. Split all the training dataset into K folds.
+2. Train K models with every K-1 folds data.
+3. Execute inference on the test data with all the K models.
+4. Compute the average values with weights or vote the most common value as the final result.
+
+![image](../images/models_ensemble.png)
+More details of practice is at [Model ensemble tutorial](https://github.com/Project-MONAI/tutorials/blob/master/modules/models_ensemble.ipynb).
 
 ## Research
 There are several research prototypes in MONAI corresponding to the recently published papers that address advanced research problems.
@@ -217,14 +250,14 @@ We always welcome contributions in forms of comments, suggestions, and code impl
 
 The generic patterns/modules identified from the research prototypes will be integrated into MONAI core functionality.
 
-### COPLE-Net for COVID-19 Pneumonia Lesion Segmentation
-[A reimplementation](https://github.com/Project-MONAI/MONAI/tree/master/research/coplenet-pneumonia-lesion-segmentation) of the COPLE-Net originally proposed by:
+### 1. COPLE-Net for COVID-19 Pneumonia Lesion Segmentation
+[A reimplementation](https://monai.io/research/coplenet-pneumonia-lesion-segmentation) of the COPLE-Net originally proposed by:
 
 G. Wang, X. Liu, C. Li, Z. Xu, J. Ruan, H. Zhu, T. Meng, K. Li, N. Huang, S. Zhang. (2020) "A Noise-robust Framework for Automatic Segmentation of COVID-19 Pneumonia Lesions from CT Images." IEEE Transactions on Medical Imaging. 2020. [DOI: 10.1109/TMI.2020.3000314](https://doi.org/10.1109/TMI.2020.3000314)
 ![image](../images/coplenet.png)
 
-### LAMP: Large Deep Nets with Automated Model Parallelism for Image Segmentation
-[A reimplementation](https://github.com/Project-MONAI/MONAI/tree/master/research/lamp-automated-model-parallelism) of the LAMP system originally proposed by:
+### 2. LAMP: Large Deep Nets with Automated Model Parallelism for Image Segmentation
+[A reimplementation](https://monai.io/research/lamp-automated-model-parallelism) of the LAMP system originally proposed by:
 
 Wentao Zhu, Can Zhao, Wenqi Li, Holger Roth, Ziyue Xu, and Daguang Xu (2020) "LAMP: Large Deep Nets with Automated Model Parallelism for Image Segmentation." MICCAI 2020 (Early Accept, paper link: https://arxiv.org/abs/2006.12575)
 ![image](../images/unet-pipe.png)
@@ -232,6 +265,23 @@ Wentao Zhu, Can Zhao, Wenqi Li, Holger Roth, Ziyue Xu, and Daguang Xu (2020) "LA
 ## GPU acceleration
 NVIDIA GPUs have been widely applied in many areas of deep learning training and evaluation, and the CUDA parallel computation shows obvious acceleration when comparing to traditional computation methods. To fully leverage GPU features, many popular mechanisms raised, like automatic mixed precision (AMP), distributed data parallel, etc. MONAI can support these features and provides rich examples.
 
-### Distributed data parallel
+### 1. Auto mixed precision(AMP)
+In 2017, NVIDIA researchers developed a methodology for mixed-precision training, which combined single-precision (FP32) with half-precision (e.g. FP16) format when training a network, and it achieved the same accuracy as FP32 training using the same hyperparameters.
+
+For the PyTorch 1.6 release, developers at NVIDIA and Facebook moved mixed precision functionality into PyTorch core as the AMP package, `torch.cuda.amp`.
+
+MONAI workflows can easily set `amp=True/False` in `SupervisedTrainer` or `SupervisedEvaluator` during training or evaluation to enable/disable AMP. And we tried to compare the training speed if AMP ON/OFF on Tesla V100 GPU with CUDA 11 and PyTorch 1.6, got some benchmark for reference:
+![image](../images/amp_training_v100.png)
+We also executed the same test program on Testa A100 GPU with the same software environment, got much faster benchmark for reference:
+![image](../images/amp_training_a100.png)
+More details is available at [AMP training tutorial](https://github.com/Project-MONAI/tutorials/blob/master/acceleration/automatic_mixed_precision.ipynb).
+We also tried to combine AMP with `CacheDataset` and `Novograd` optimizer to achieve the fast training in MONAI, able to obtain approximately 12x speedup compared with a Pytorch native implementation when the training converges at a validation mean dice of 0.93. Benchmark for reference:
+![image](../images/fast_training.png)
+More details is available at [Fast training tutorial](https://github.com/Project-MONAI/tutorials/blob/master/acceleration/fast_training_tutorial.ipynb).
+
+### 2. Distributed data parallel
 Distributed data parallel is an important feature of PyTorch to connect multiple GPU devices on 1 node or several nodes to train or evaluate models. MONAI provides many demos for reference: train/evaluate with PyTorch DDP, train/evaluate with Horovod, train/evaluate with Ignite DDP, partition dataset and train with SmartCacheDataset, etc. And also provides a real world training example based on Decathlon challenge Task01 - Brain Tumor segmentation, it contains distributed caching, training, and validation. We tried to train this example on NVIDIA NGC server, got some performance benchmarks for reference(PyTorch 1.6, CUDA 11, Tesla V100 GPUs):
 ![image](../images/distributed_training.png)
+
+### 3. C++/CUDA optimized modules
+To accelerate some heavy computation progress, C++/CUDA implementation can be an impressive method, which usually brings even hundreds of times faster performance. MONAI contains some C++/CUDA optimized modules, like `Resampler`,and fully support C++/CUDA programs in CI/CD and building package.

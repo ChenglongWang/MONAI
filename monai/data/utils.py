@@ -21,7 +21,15 @@ import torch
 from torch.utils.data._utils.collate import default_collate
 
 from monai.networks.layers.simplelayers import GaussianFilter
-from monai.utils import BlendMode, NumpyPadMode, ensure_tuple, ensure_tuple_size, first, optional_import
+from monai.utils import (
+    BlendMode,
+    NumpyPadMode,
+    ensure_tuple,
+    ensure_tuple_rep,
+    ensure_tuple_size,
+    first,
+    optional_import,
+)
 
 nib, _ = optional_import("nibabel")
 
@@ -425,14 +433,19 @@ def to_affine_nd(r: Union[np.ndarray, int], affine: np.ndarray) -> np.ndarray:
     return new_affine
 
 
-def create_file_basename(postfix: str, input_file_name: str, folder_path: str, data_root_dir: str = "") -> str:
+def create_file_basename(
+    postfix: str,
+    input_file_name: str,
+    folder_path: str,
+    data_root_dir: str = "",
+) -> str:
     """
     Utility function to create the path to the output file based on the input
     filename (extension is added by lib level writer before writing the file)
 
     Args:
         postfix: output name's postfix
-        input_file_name: path to the input image file
+        input_file_name: path to the input image file.
         folder_path: path for the output file
         data_root_dir: if not empty, it specifies the beginning parts of the input file's
             absolute path. This is used to compute `input_file_rel_path`, the relative path to the file from
@@ -442,12 +455,10 @@ def create_file_basename(postfix: str, input_file_name: str, folder_path: str, d
 
     # get the filename and directory
     filedir, filename = os.path.split(input_file_name)
-
-    # jettison the extension to have just filename
+    # remove exntension
     filename, ext = os.path.splitext(filename)
-    # while ext != "":
-    #     filename, ext = os.path.splitext(filename)
-
+    if ext == ".gz":
+        filename, ext = os.path.splitext(filename)
     # use data_root_dir to find relative path to file
     filedir_rel_path = ""
     if data_root_dir:
@@ -465,7 +476,7 @@ def create_file_basename(postfix: str, input_file_name: str, folder_path: str, d
 def compute_importance_map(
     patch_size: Tuple[int, ...],
     mode: Union[BlendMode, str] = BlendMode.CONSTANT,
-    sigma_scale: float = 0.125,
+    sigma_scale: Union[Sequence[float], float] = 0.125,
     device: Optional[torch.device] = None,
 ) -> torch.Tensor:
     """Get importance map for different weight modes.
@@ -494,7 +505,8 @@ def compute_importance_map(
         importance_map = torch.ones(patch_size, device=device).float()
     elif mode == BlendMode.GAUSSIAN:
         center_coords = [i // 2 for i in patch_size]
-        sigmas = [i * sigma_scale for i in patch_size]
+        sigma_scale = ensure_tuple_rep(sigma_scale, len(patch_size))
+        sigmas = [i * sigma_s for i, sigma_s in zip(patch_size, sigma_scale)]
 
         importance_map = torch.zeros(patch_size, device=device)
         importance_map[tuple(center_coords)] = 1
@@ -505,9 +517,12 @@ def compute_importance_map(
         importance_map = importance_map.float()
 
         # importance_map cannot be 0, otherwise we may end up with nans!
-        importance_map[importance_map == 0] = torch.min(importance_map[importance_map != 0])
+        min_non_zero = importance_map[importance_map != 0].min().item()
+        importance_map = torch.clamp(importance_map, min=min_non_zero)
     else:
-        raise ValueError(f'Unsupported mode: {mode}, available options are ["constant", "gaussian"].')
+        raise ValueError(
+            f"Unsupported mode: {mode}, available options are [{BlendMode.CONSTANT}, {BlendMode.CONSTANT}]."
+        )
 
     return importance_map
 
@@ -526,7 +541,7 @@ def is_supported_format(filename: Union[Sequence[str], str], suffixes: Sequence[
     filenames: Sequence[str] = ensure_tuple(filename)
     for name in filenames:
         tokens: Sequence[str] = PurePath(name).suffixes
-        if len(tokens) == 0 or not any(("." + s.lower()) == "".join(tokens) for s in suffixes):
+        if len(tokens) == 0 or not any(("." + s.lower()) in "".join(tokens) for s in suffixes):
             return False
 
     return True
