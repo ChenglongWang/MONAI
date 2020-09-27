@@ -82,3 +82,36 @@ class LrScheduleHandler:
         self.lr_scheduler.step(*args)
         if self.print_lr:
             self.logger.info(f"Current learning rate: {self.lr_scheduler._last_lr[0]}")  # type: ignore[union-attr]
+
+
+class LrScheduleTensorboardHandler(LrScheduleHandler):
+    """
+    Ignite handler to update the Learning Rate based on PyTorch LR scheduler.
+    """
+
+    def __init__(
+        self,
+        lr_scheduler,
+        summary_writer,
+        print_lr: bool = True,
+        name: Optional[str] = None,
+        epoch_level: bool = True,
+        step_transform: Callable = lambda engine: (),
+    ):
+        super().__init__(
+            lr_scheduler = lr_scheduler,
+            print_lr = print_lr,
+            name = name,
+            epoch_level = epoch_level,
+            step_transform = step_transform
+        )
+        self.writer = summary_writer
+
+    def __call__(self, engine):
+        args = ensure_tuple(self.step_transform(engine))
+        self.lr_scheduler.step(*args)
+        if self.print_lr:
+            self.logger.info(f"Current learning rate: {self.lr_scheduler._last_lr[0]}")
+        if self.writer is not None:
+            self.writer.add_scalar("Learning_rate", self.lr_scheduler._last_lr[0], engine.state.iteration)
+

@@ -12,13 +12,13 @@
 from .checkpoint_loader import CheckpointLoader
 from .checkpoint_saver import CheckpointSaver
 from .classification_saver import ClassificationSaver
-from .lr_schedule_handler import LrScheduleHandler
+from .lr_schedule_handler import LrScheduleHandler, LrScheduleTensorboardHandler
 from .mean_dice import MeanDice
 from .metric_logger import MetricLogger
 from .roc_auc import ROCAUC
 from .segmentation_saver import SegmentationSaver
 from .smartcache_handler import SmartCacheHandler
 from .stats_handler import StatsHandler
-from .tensorboard_handlers import TensorBoardImageHandler, TensorBoardStatsHandler
+from .tensorboard_handlers import TensorBoardImageHandler, TensorBoardStatsHandler, MyTensorBoardImageHandler
 from .utils import *
 from .validation_handler import ValidationHandler

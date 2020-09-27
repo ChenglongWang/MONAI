@@ -133,8 +133,8 @@ class BorderPad(Transform):
         spatial_shape = img.shape[1:]
         spatial_border = ensure_tuple(self.spatial_border)
         for b in spatial_border:
-            if not isinstance(b, int) or b < 0:
-                raise ValueError(f"self.spatial_border must contain only nonnegative ints, got {spatial_border}.")
+            if b < 0:
+                raise ValueError(f"self.spatial_border must contain only nonnegative ints, got {spatial_border} with type {type(b)}.")
 
         if len(spatial_border) == 1:
             data_pad_width = [(spatial_border[0], spatial_border[0]) for _ in range(len(spatial_shape))]
@@ -256,8 +256,9 @@ class CenterSpatialCrop(Transform):
             If its components have non-positive values, the corresponding size of input image will be used.
     """
 
-    def __init__(self, roi_size: Union[Sequence[int], int]) -> None:
+    def __init__(self, roi_size: Union[Sequence[int], int], allow_pad: Optional[bool]=False) -> None:
         self.roi_size = roi_size
+        self.allow_pad = allow_pad
 
     def __call__(self, img: np.ndarray) -> np.ndarray:
         """
@@ -266,7 +267,10 @@ class CenterSpatialCrop(Transform):
         """
         self.roi_size = fall_back_tuple(self.roi_size, img.shape[1:])
         center = [i // 2 for i in img.shape[1:]]
-        cropper = SpatialCrop(roi_center=center, roi_size=self.roi_size)
+        if self.allow_pad:
+            cropper = SpatialPadCrop(roi_center=center, roi_size=self.roi_size)
+        else:
+            cropper = SpatialCrop(roi_center=center, roi_size=self.roi_size)
         return cropper(img)
 
 
@@ -533,3 +537,45 @@ class RandCropByPosNegLabel(Randomizable, Transform):
                 results.append(cropper(img))
 
         return results
+
+
+class SpatialPadCrop(Transform):
+    def __init__(
+        self,
+        roi_center: Optional[Sequence[int]] = None,
+        roi_size: Optional[Sequence[int]] = None,
+        roi_start: Optional[Sequence[int]] = None,
+        roi_end: Optional[Sequence[int]] = None,
+        pad_mode: Union[NumpyPadMode, str] = NumpyPadMode.CONSTANT
+    ) -> None:
+
+        if roi_center is not None and roi_size is not None:
+            roi_center = np.asarray(roi_center, dtype=np.int32)
+            roi_size = np.asarray(roi_size, dtype=np.int32)
+            self.roi_start = np.subtract(roi_center, np.floor_divide(roi_size, 2))
+            self.roi_end = np.add(self.roi_start, roi_size)
+        else:
+            assert roi_start is not None and roi_end is not None, "roi_start and roi_end must be provided."
+            self.roi_start = np.asarray(roi_start, dtype=np.int32)
+            self.roi_end = np.asarray(roi_end, dtype=np.int32)
+
+        self.mode: NumpyPadMode = NumpyPadMode(pad_mode)
+        assert np.all(self.roi_end > 0), "all elements of roi_end must be positive."
+        assert np.all(self.roi_end >= self.roi_start), f"invalid roi range. roi_end: {self.roi_end}, roi_start: {self.roi_start}"
+    
+    def __call__(self, img: np.ndarray) -> np.ndarray:
+        min_start = (0,0)
+        max_end = img.shape[1:]
+        sd = min(len(self.roi_start), len(max_end))
+
+        start_pad = np.subtract(min_start, self.roi_start[:sd])
+        end_pad = np.subtract(self.roi_end[:sd], max_end[:sd])
+        if np.any(start_pad>0) and np.any(end_pad>0): # padding
+            pads = np.maximum(0, np.concatenate([start_pad,end_pad]))
+            slices = [slice(None)] + [slice(s, e) for s, e in zip(self.roi_start[:sd]+pads[:2], self.roi_end[:sd]-pads[2:])]
+            cropped_img = img[tuple(slices)]
+            padder = BorderPad(spatial_border=[pads[0],pads[2],pads[1],pads[3]], mode=self.mode)
+            return padder(cropped_img)
+        else:
+            slices = [slice(None)] + [slice(s, e) for s, e in zip(self.roi_start[:sd], self.roi_end[:sd])]
+            return img[tuple(slices)]

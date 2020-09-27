@@ -10,11 +10,11 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Sequence, Union
+from typing import Sequence, Union, Optional
 
 import torch
 
-from monai.inferers.utils import sliding_window_inference
+from monai.inferers.utils import sliding_window_inference, sliding_window_classification
 from monai.utils import BlendMode
 
 
@@ -108,3 +108,24 @@ class SlidingWindowInferer(Inferer):
 
         """
         return sliding_window_inference(inputs, self.roi_size, self.sw_batch_size, network, self.overlap, self.mode)
+
+
+class SlidingWindowClassify(Inferer):
+
+    def __init__(
+        self,
+        roi_size: Union[Sequence[int], int],
+        sw_batch_size: int = 1,
+        overlap: float = 0.25,
+        mode: Union[BlendMode, str] = BlendMode.CONSTANT,
+        output_internel_results: Optional[bool] = False
+    ) -> None:
+        Inferer.__init__(self)
+        self.roi_size = roi_size
+        self.sw_batch_size = sw_batch_size
+        self.overlap = overlap
+        self.mode: BlendMode = BlendMode(mode)
+        self.output_internel_results = output_internel_results
+    
+    def __call__(self, inputs: torch.Tensor, network: torch.nn.Module) -> torch.Tensor:
+        return sliding_window_classification(inputs, self.roi_size, self.sw_batch_size, network, self.overlap, self.mode)

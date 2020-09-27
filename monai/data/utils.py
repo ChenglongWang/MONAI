@@ -445,8 +445,8 @@ def create_file_basename(postfix: str, input_file_name: str, folder_path: str, d
 
     # jettison the extension to have just filename
     filename, ext = os.path.splitext(filename)
-    while ext != "":
-        filename, ext = os.path.splitext(filename)
+    # while ext != "":
+    #     filename, ext = os.path.splitext(filename)
 
     # use data_root_dir to find relative path to file
     filedir_rel_path = ""
