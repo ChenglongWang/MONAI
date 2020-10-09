@@ -205,9 +205,9 @@ class CenterSpatialCropd(MapTransform):
             If its components have non-positive values, the corresponding size of input image will be used.
     """
 
-    def __init__(self, keys: KeysCollection, roi_size: Union[Sequence[int], int], allow_pad: Optional[bool] = False) -> None:
+    def __init__(self, keys: KeysCollection, roi_size: Union[Sequence[int], int]) -> None:
         super().__init__(keys)
-        self.cropper = CenterSpatialCrop(roi_size, allow_pad=allow_pad)
+        self.cropper = CenterSpatialCrop(roi_size)
 
     def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
         d = dict(data)

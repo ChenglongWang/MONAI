@@ -256,9 +256,8 @@ class CenterSpatialCrop(Transform):
             If its components have non-positive values, the corresponding size of input image will be used.
     """
 
-    def __init__(self, roi_size: Union[Sequence[int], int], allow_pad: Optional[bool]=False) -> None:
+    def __init__(self, roi_size: Union[Sequence[int], int]) -> None:
         self.roi_size = roi_size
-        self.allow_pad = allow_pad
 
     def __call__(self, img: np.ndarray) -> np.ndarray:
         """
@@ -267,10 +266,7 @@ class CenterSpatialCrop(Transform):
         """
         self.roi_size = fall_back_tuple(self.roi_size, img.shape[1:])
         center = [i // 2 for i in img.shape[1:]]
-        if self.allow_pad:
-            cropper = SpatialPadCrop(roi_center=center, roi_size=self.roi_size)
-        else:
-            cropper = SpatialCrop(roi_center=center, roi_size=self.roi_size)
+        cropper = SpatialCrop(roi_center=center, roi_size=self.roi_size)
         return cropper(img)
 
 
