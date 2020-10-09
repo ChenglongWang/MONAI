@@ -351,6 +351,13 @@ class RandSpatialCropSamples(Randomizable, Transform):
         self.num_samples = num_samples
         self.cropper = RandSpatialCrop(roi_size, random_center, random_size)
 
+    def set_random_state(
+        self, seed: Optional[int] = None, state: Optional[np.random.RandomState] = None
+    ) -> "Randomizable":
+        super().set_random_state(seed=seed, state=state)
+        self.cropper.set_random_state(state=self.R)
+        return self
+
     def randomize(self, data: Optional[Any] = None) -> None:
         pass
 
@@ -542,43 +549,40 @@ class RandCropByPosNegLabel(Randomizable, Transform):
         return results
 
 
-class SpatialPadCrop(Transform):
+class ResizeWithPadOrCrop(Transform):
+    """
+    Resize an image to a target spatial size by either centrally cropping the image or
+    padding it evenly with a user-specified mode.
+    when the dimension is smaller than the target size, do central cropping along that dim.
+    when the dimension is larger than the target size, do symmetric padding along that dim.
+
+    Args:
+        spatial_size: the spatial size of output data after padding or crop.
+            If has non-positive values, the corresponding size of input image will be used (no padding).
+        mode: {``"constant"``, ``"edge"``, ``"linear_ramp"``, ``"maximum"``, ``"mean"``,
+            ``"median"``, ``"minimum"``, ``"reflect"``, ``"symmetric"``, ``"wrap"``, ``"empty"``}
+            One of the listed string values or a user supplied function for padding. Defaults to ``"constant"``.
+            See also: https://numpy.org/doc/1.18/reference/generated/numpy.pad.html
+
+    """
+
     def __init__(
         self,
-        roi_center: Optional[Sequence[int]] = None,
-        roi_size: Optional[Sequence[int]] = None,
-        roi_start: Optional[Sequence[int]] = None,
-        roi_end: Optional[Sequence[int]] = None,
-        pad_mode: Union[NumpyPadMode, str] = NumpyPadMode.CONSTANT
-    ) -> None:
+        spatial_size: Union[Sequence[int], int],
+        mode: Union[NumpyPadMode, str] = NumpyPadMode.CONSTANT,
+    ):
+        self.padder = SpatialPad(spatial_size=spatial_size, mode=mode)
+        self.cropper = CenterSpatialCrop(roi_size=spatial_size)
 
-        if roi_center is not None and roi_size is not None:
-            roi_center = np.asarray(roi_center, dtype=np.int32)
-            roi_size = np.asarray(roi_size, dtype=np.int32)
-            self.roi_start = np.subtract(roi_center, np.floor_divide(roi_size, 2))
-            self.roi_end = np.add(self.roi_start, roi_size)
-        else:
-            assert roi_start is not None and roi_end is not None, "roi_start and roi_end must be provided."
-            self.roi_start = np.asarray(roi_start, dtype=np.int32)
-            self.roi_end = np.asarray(roi_end, dtype=np.int32)
-
-        self.mode: NumpyPadMode = NumpyPadMode(pad_mode)
-        assert np.all(self.roi_end > 0), "all elements of roi_end must be positive."
-        assert np.all(self.roi_end >= self.roi_start), f"invalid roi range. roi_end: {self.roi_end}, roi_start: {self.roi_start}"
-    
-    def __call__(self, img: np.ndarray) -> np.ndarray:
-        min_start = (0,0)
-        max_end = img.shape[1:]
-        sd = min(len(self.roi_start), len(max_end))
-
-        start_pad = np.subtract(min_start, self.roi_start[:sd])
-        end_pad = np.subtract(self.roi_end[:sd], max_end[:sd])
-        if np.any(start_pad>0) and np.any(end_pad>0): # padding
-            pads = np.maximum(0, np.concatenate([start_pad,end_pad]))
-            slices = [slice(None)] + [slice(s, e) for s, e in zip(self.roi_start[:sd]+pads[:2], self.roi_end[:sd]-pads[2:])]
-            cropped_img = img[tuple(slices)]
-            padder = BorderPad(spatial_border=[pads[0],pads[2],pads[1],pads[3]], mode=self.mode)
-            return padder(cropped_img)
-        else:
-            slices = [slice(None)] + [slice(s, e) for s, e in zip(self.roi_start[:sd], self.roi_end[:sd])]
-            return img[tuple(slices)]
+    def __call__(self, img: np.ndarray, mode: Optional[Union[NumpyPadMode, str]] = None) -> np.ndarray:
+        """
+        Args:
+            img: data to pad or crop, assuming `img` is channel-first and
+                padding or cropping doesn't apply to the channel dim.
+            mode: {``"constant"``, ``"edge"``, ``"linear_ramp"``, ``"maximum"``, ``"mean"``,
+                ``"median"``, ``"minimum"``, ``"reflect"``, ``"symmetric"``, ``"wrap"``, ``"empty"``}
+                One of the listed string values or a user supplied function for padding.
+                If None, defaults to the ``mode`` in construction.
+                See also: https://numpy.org/doc/1.18/reference/generated/numpy.pad.html
+        """
+        return self.cropper(self.padder(img, mode=mode))
