@@ -31,6 +31,7 @@ from monai.transforms.spatial.array import (
     Rand3DElastic,
     RandAffine,
     Resize,
+    FixedResize,
     Rotate,
     Rotate90,
     Spacing,
@@ -973,6 +974,32 @@ class RandZoomd(Randomizable, MapTransform):
         zoomer = Zoom(self._zoom, keep_size=self.keep_size)
         for idx, key in enumerate(self.keys):
             d[key] = zoomer(d[key], mode=self.mode[idx], align_corners=self.align_corners[idx])
+        return d
+
+
+class FixedResized(MapTransform):
+    """
+    Dict-based version :py:class:`monai.transforms.FixedResize`.
+
+    Args:
+        keys: Keys to pick data for transformation.
+    """    
+    def __init__(
+        self,
+        keys: KeysCollection,
+        spatial_size: Union[Sequence[int], int],
+        mode: InterpolateModeSequence = InterpolateMode.AREA,
+        align_corners: Union[Sequence[Optional[bool]], Optional[bool]] = None,
+    ) -> None:
+        super().__init__(keys)
+        self.mode = ensure_tuple_rep(mode, len(self.keys))
+        self.align_corners = ensure_tuple_rep(align_corners, len(self.keys))
+        self.resizer = FixedResize(spatial_size=spatial_size)
+
+    def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
+        d = dict(data)
+        for idx, key in enumerate(self.keys):
+            d[key] = self.resizer(d[key], mode=self.mode[idx], align_corners=self.align_corners[idx])
         return d
 
 
