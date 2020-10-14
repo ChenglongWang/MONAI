@@ -17,7 +17,7 @@ import torch.nn as nn
 
 from monai.networks.blocks.convolutions import Convolution
 from monai.networks.layers.factories import Act, Norm, split_args
-
+from monai.networks.layers.factories import Act, Conv, Dropout, Norm, split_args
 
 class UnetResBlock(nn.Module):
     """
@@ -206,11 +206,21 @@ class UnetUpBlock(nn.Module):
 
 
 class UnetOutBlock(nn.Module):
-    def __init__(self, spatial_dims: int, in_channels: int, out_channels: int):
+    def __init__(self, spatial_dims: int, in_channels: int, out_channels: int, **kwargs):
         super(UnetOutBlock, self).__init__()
+        kernel_size = kwargs.get('kernel_size', 1)
+        stride = kwargs.get('stride',1)
+        bias = kwargs.get('bias',True)
+        conv_only = kwargs.get('conv_only',True)
+        activation = kwargs.get('activation', None)
+
         self.conv = get_conv_layer(
-            spatial_dims, in_channels, out_channels, kernel_size=1, stride=1, bias=True, conv_only=True
+            spatial_dims, in_channels, out_channels, kernel_size=kernel_size, stride=stride, bias=bias, conv_only=conv_only
         )
+        if activation is not None:
+            act_name, act_args = split_args(activation)
+            act_type = Act[act_name]
+            self.conv.add_module("act", act_type(**act_args))
 
     def forward(self, inp):
         out = self.conv(inp)

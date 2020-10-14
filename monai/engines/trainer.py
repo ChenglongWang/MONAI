@@ -293,3 +293,67 @@ class GanTrainer(Trainer):
             GanKeys.GLOSS: g_loss.item(),
             GanKeys.DLOSS: d_total_loss.item(),
         }
+
+
+class RcnnTrainer(Trainer):
+    def __init__(
+        self,
+        device: torch.device,
+        max_epochs: int,
+        train_data_loader: DataLoader,
+        network: torch.nn.Module,
+        optimizer: Optimizer,
+        loss_functions: Sequence[Callable],
+        prepare_batch: Callable = default_prepare_batch,
+        iteration_update: Optional[Callable] = None,
+        inferer: Inferer = SimpleInferer(),
+        post_transform: Optional[Transform] = None,
+        key_train_metric: Optional[Dict[str, Metric]] = None,
+        additional_metrics: Optional[Dict[str, Metric]] = None,
+        train_handlers: Optional[Sequence] = None,
+        amp: bool = False,
+    ) -> None:
+        super().__init__(
+            device=device,
+            max_epochs=max_epochs,
+            data_loader=train_data_loader,
+            prepare_batch=prepare_batch,
+            iteration_update=iteration_update,
+            post_transform=post_transform,
+            key_metric=key_train_metric,
+            additional_metrics=additional_metrics,
+            handlers=train_handlers,
+            amp=amp,
+        )
+
+        self.network = network
+        self.optimizer = optimizer
+        self.loss_functions = loss_functions
+        self.inferer = inferer
+
+    def _iteration(self, engine: Engine, batchdata: Dict[str, torch.Tensor]):
+        
+        if batchdata is None:
+            raise ValueError("Must provide batch data for current iteration.")
+
+        images, labels, roi_bboxs, roi_labels = self.prepare_batch(batchdata)
+        images, labels = images.to(engine.state.device), labels.to(engine.state.device)
+        roi_bboxs, roi_labels = roi_bboxs.to(engine.state.device), roi_labels.to(engine.state.device)
+
+        self.network.train()
+        self.optimizer.zero_grad()
+        if self.amp and self.scaler is not None:
+            with torch.cuda.amp.autocast():
+                detections, class_logits, pred_deltas, seg_logits = self.inferer(images, self.network)
+                for loss_fn in self.loss_functions:
+                    loss = loss_fn(predictions, targets).mean()
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        else:
+            detections, class_logits, pred_deltas, seg_logits = self.inferer(images, self.network)
+            loss = self.loss_functions(predictions, targets).mean()
+            loss.backward()
+            self.optimizer.step()
+
+        return {Keys.IMAGE: inputs, Keys.LABEL: targets, Keys.PRED: predictions, Keys.LOSS: loss.item()}

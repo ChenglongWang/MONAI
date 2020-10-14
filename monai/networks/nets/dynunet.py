@@ -10,7 +10,7 @@
 # limitations under the License.
 
 
-from typing import List, Sequence, Union
+from typing import List, Sequence, Union, Optional
 
 import torch.nn as nn
 
@@ -66,6 +66,7 @@ class DynUNet(nn.Module):
         deep_supervision: bool = True,
         deep_supr_num: int = 1,
         res_block: bool = True,
+        last_activation: Optional[str] = None
     ):
         super(DynUNet, self).__init__()
         self.spatial_dims = spatial_dims
@@ -81,7 +82,7 @@ class DynUNet(nn.Module):
         self.downsamples = self.get_downsamples()
         self.bottleneck = self.get_bottleneck()
         self.upsamples = self.get_upsamples()
-        self.output_block = self.get_output_block(0)
+        self.output_block = self.get_output_block(0, last_activation=last_activation)
         self.deep_supervision_heads = self.get_deep_supervision_heads()
         self.deep_supr_num = deep_supr_num
         self.apply(self.initialize_weights)
@@ -146,12 +147,14 @@ class DynUNet(nn.Module):
             self.norm_name,
         )
 
-    def get_output_block(self, idx: int):
-        return UnetOutBlock(
-            self.spatial_dims,
-            self.filters[idx],
-            self.out_channels,
-        )
+    def get_output_block(self, idx: int, upsample: int = 0, last_activation: Optional[str] = None):
+        if upsample > 1:
+            return nn.Sequential(UnetOutBlock(self.spatial_dims, self.filters[idx], self.out_channels), 
+                                  nn.UpsamplingBilinear2d(scale_factor=upsample))
+        else:
+            return UnetOutBlock(
+                self.spatial_dims, self.filters[idx], self.out_channels, activation=last_activation
+            )
 
     def get_downsamples(self):
         inp, out = self.filters[:-2], self.filters[1:-1]
@@ -185,7 +188,7 @@ class DynUNet(nn.Module):
         return nn.ModuleList(layers)
 
     def get_deep_supervision_heads(self):
-        return nn.ModuleList([self.get_output_block(i + 1) for i in range(len(self.upsamples) - 1)])
+        return nn.ModuleList([self.get_output_block(i + 1, upsample=2**(i+1)) for i in range(len(self.upsamples) - 1)])
 
     @staticmethod
     def initialize_weights(module):
