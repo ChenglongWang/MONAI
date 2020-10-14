@@ -199,14 +199,16 @@ class LoadPNG(Transform):
     https://pillow.readthedocs.io/en/stable/reference/Image.html
     """
 
-    def __init__(self, image_only: bool = False, dtype: Optional[np.dtype] = np.float32) -> None:
+    def __init__(self, image_only: bool = False, dtype: Optional[np.dtype] = np.float32, grayscale: bool = False) -> None:
         """
         Args:
             image_only: if True return only the image volume, otherwise return image data array and metadata.
             dtype: if not None convert the loaded image to this data type.
+            grayscale: convert image to grayscale.
         """
         self.image_only = image_only
         self.dtype = dtype
+        self.grayscale = grayscale
 
     def __call__(self, filename: Union[Sequence[Union[Path, str]], Path, str]):
         """
@@ -217,7 +219,7 @@ class LoadPNG(Transform):
         img_array = list()
         compatible_meta = None
         for name in filename:
-            img = Image.open(name)
+            img = Image.open(name).convert('L') if self.grayscale else Image.open(name)
             data = np.asarray(img)
             if self.dtype:
                 data = data.astype(self.dtype)
@@ -229,7 +231,7 @@ class LoadPNG(Transform):
             meta = dict()
             meta["filename_or_obj"] = name
             meta["spatial_shape"] = data.shape[:2]
-            meta["format"] = img.format
+            meta["format"] = img.format if img.format is not None else name.split('.')[-1]
             meta["mode"] = img.mode
             meta["width"] = img.width
             meta["height"] = img.height
