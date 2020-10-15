@@ -19,6 +19,7 @@ from warnings import warn
 
 import numpy as np
 import torch
+from scipy.special import comb
 
 from monai.networks.layers import GaussianFilter
 from monai.transforms.compose import Randomizable, Transform
@@ -877,3 +878,61 @@ class RandImageOutpainting(Randomizable, Transform):
                                                                                   self.noise_x:self.noise_x+self.block_noise_size_x, 
                                                                                   self.noise_y:self.noise_y+self.block_noise_size_y]
         return x
+
+
+class RandNonlinear(Randomizable, Transform):
+    def __init__(self, prob: float = 0.5):
+        self.prob = prob
+    
+    def randomize(self, data: Optional[Any] = None) -> None:
+        self._do_transform = self.R.random() < self.prob
+        self.points = [[0, 0], [self.R.random(), self.R.random()], [self.R.random(), self.R.random()], [1, 1]]
+    
+    def bernstein_poly(self, i, n, t):
+        """
+        The Bernstein polynomial of n, i as a function of t
+        """
+
+        return comb(n, i) * ( t**(n-i) ) * (1 - t)**i
+
+    def bezier_curve(self, points, nTimes=10000):
+        """
+        Given a set of control points, return the
+        bezier curve defined by the control points.
+        Control points should be a list of lists, or list of tuples
+        such as [ [1,1], 
+                    [2,3], 
+                    [4,5], ..[Xn, Yn] ]
+            nTimes is the number of time steps, defaults to 1000
+            See http://processingjs.nihongoresources.com/bezierinfo/
+        """
+
+        nPoints = len(points)
+        xPoints = np.array([p[0] for p in points])
+        yPoints = np.array([p[1] for p in points])
+
+        t = np.linspace(0.0, 1.0, nTimes)
+
+        polynomial_array = np.array([ self.bernstein_poly(i, nPoints-1, t) for i in range(0, nPoints)   ])
+        
+        xvals = np.dot(xPoints, polynomial_array)
+        yvals = np.dot(yPoints, polynomial_array)
+
+        return xvals, yvals
+
+    def __call__(self, image):
+        self.randomize(image)
+        if not self._do_transform:
+            return image
+
+        xpoints = [p[0] for p in self.points]
+        ypoints = [p[1] for p in self.points]
+        xvals, yvals = self.bezier_curve(self.points, nTimes=10000)
+        if self.R.random() < 0.5:
+            # Half change to get flip
+            xvals = np.sort(xvals)
+        else:
+            xvals, yvals = np.sort(xvals), np.sort(yvals)
+        
+        nonlinear_x = np.interp(image, xvals, yvals)
+        return nonlinear_x
