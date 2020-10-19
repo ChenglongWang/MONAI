@@ -73,6 +73,7 @@ class CheckpointSaver:
         save_final: bool = False,
         save_key_metric: bool = False,
         key_metric_name: Optional[str] = None,
+        key_metric_mode: str = 'max',
         key_metric_n_saved: int = 1,
         epoch_level: bool = True,
         save_interval: int = 0,
@@ -114,7 +115,12 @@ class CheckpointSaver:
                     raise ValueError(
                         f"Incompatible values: save_key_metric=True and key_metric_name={key_metric_name}."
                     )
-                return round(engine.state.metrics[metric_name], 4)
+                if key_metric_mode == 'max':
+                    return round(engine.state.metrics[metric_name], 4)
+                elif key_metric_mode == 'min':
+                    return -round(engine.state.metrics[metric_name], 4)
+                else:
+                    raise ValueError("key_metric_mode must be 'max' or 'min'") 
 
             self._key_metric_checkpoint = ModelCheckpoint(
                 self.save_dir,
