@@ -44,6 +44,10 @@ class CheckpointLoader:
             first load the module to CPU and then copy each parameter to where it was
             saved, which would result in all processes on the same machine using the
             same set of devices.
+        strict: whether to strictly enforce that the keys in :attr:`state_dict` with :attr:`prefix`
+                match the names of parameters and buffers in this module
+        skip_mismatch: whether to skip loading of layers where there is a mismatch in the 
+                       number of weights, or a mismatch in the shape of the weight
 
     """
 
@@ -53,6 +57,8 @@ class CheckpointLoader:
         load_dict: Dict,
         name: Optional[str] = None,
         map_location: Optional[Dict] = None,
+        strict=True,
+        skip_mismatch=False,
     ) -> None:
         assert load_path is not None, "must provide clear path to load checkpoint."
         self.load_path = load_path
@@ -64,6 +70,8 @@ class CheckpointLoader:
         self.load_dict = load_dict
         self._name = name
         self.map_location = map_location
+        self.strict = strict
+        self.skip_mismatch = skip_mismatch
 
     def attach(self, engine: Engine) -> None:
         """
@@ -80,10 +88,20 @@ class CheckpointLoader:
             engine: Ignite Engine, it can be a trainer, validator or evaluator.
         """
         checkpoint = torch.load(self.load_path, map_location=self.map_location)
+        key = 'net'
         if len(self.load_dict) == 1:
             key = list(self.load_dict.keys())[0]
             if not (key in checkpoint):
                 checkpoint = {key: checkpoint}
+        
+        if self.skip_mismatch:
+            if key in self.load_dict.keys():
+                model_dict = self.load_dict[key].state_dict().copy()
+                filtered_dict = {k: v for k, v in checkpoint[key].items() if v.shape == model_dict[k].shape}
+                model_dict.update(filtered_dict)
+                checkpoint[key] = model_dict
+            else:
+                raise ValueError("Cannot find network key '{}' in model".format(key))
 
-        Checkpoint.load_objects(to_load=self.load_dict, checkpoint=checkpoint)
+        Checkpoint.load_objects(to_load=self.load_dict, checkpoint=checkpoint, strict=self.strict)
         self.logger.info(f"Restored all variables from {self.load_path}")
