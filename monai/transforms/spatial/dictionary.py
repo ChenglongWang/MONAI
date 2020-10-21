@@ -43,6 +43,7 @@ from monai.utils import (
     GridSampleMode,
     GridSamplePadMode,
     InterpolateMode,
+    NumpyPadMode,
     ensure_tuple,
     ensure_tuple_rep,
     fall_back_tuple,
@@ -51,6 +52,7 @@ from monai.utils import (
 GridSampleModeSequence = Union[Sequence[Union[GridSampleMode, str]], GridSampleMode, str]
 GridSamplePadModeSequence = Union[Sequence[Union[GridSamplePadMode, str]], GridSamplePadMode, str]
 InterpolateModeSequence = Union[Sequence[Union[InterpolateMode, str]], InterpolateMode, str]
+NumpyPadModeSequence = Union[Sequence[Union[NumpyPadMode, str]], NumpyPadMode, str]
 
 
 class Spacingd(MapTransform):
@@ -882,6 +884,10 @@ class Zoomd(MapTransform):
             The interpolation mode. Defaults to ``"area"``.
             See also: https://pytorch.org/docs/stable/nn.functional.html#interpolate
             It also can be a sequence of string, each element corresponds to a key in ``keys``.
+        padding_mode: {``"constant"``, ``"edge``", ``"linear_ramp``", ``"maximum``", ``"mean``", `"median``",
+            ``"minimum``", `"reflect``", ``"symmetric``", ``"wrap``", ``"empty``", ``"<function>``"}
+            The mode to pad data after zooming.
+            See also: https://numpy.org/doc/stable/reference/generated/numpy.pad.html
         align_corners: This only has an effect when mode is
             'linear', 'bilinear', 'bicubic' or 'trilinear'. Default: None.
             See also: https://pytorch.org/docs/stable/nn.functional.html#interpolate
@@ -894,18 +900,25 @@ class Zoomd(MapTransform):
         keys: KeysCollection,
         zoom: Union[Sequence[float], float],
         mode: InterpolateModeSequence = InterpolateMode.AREA,
+        padding_mode: NumpyPadModeSequence = NumpyPadMode.EDGE,
         align_corners: Union[Sequence[Optional[bool]], Optional[bool]] = None,
         keep_size: bool = True,
     ) -> None:
         super().__init__(keys)
         self.mode = ensure_tuple_rep(mode, len(self.keys))
+        self.padding_mode = ensure_tuple_rep(padding_mode, len(self.keys))
         self.align_corners = ensure_tuple_rep(align_corners, len(self.keys))
         self.zoomer = Zoom(zoom=zoom, keep_size=keep_size)
 
     def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
         d = dict(data)
         for idx, key in enumerate(self.keys):
-            d[key] = self.zoomer(d[key], mode=self.mode[idx], align_corners=self.align_corners[idx])
+            d[key] = self.zoomer(
+                d[key],
+                mode=self.mode[idx],
+                padding_mode=self.padding_mode[idx],
+                align_corners=self.align_corners[idx],
+            )
         return d
 
 
@@ -928,6 +941,10 @@ class RandZoomd(Randomizable, MapTransform):
             The interpolation mode. Defaults to ``"area"``.
             See also: https://pytorch.org/docs/stable/nn.functional.html#interpolate
             It also can be a sequence of string, each element corresponds to a key in ``keys``.
+        padding_mode: {``"constant"``, ``"edge``", ``"linear_ramp``", ``"maximum``", ``"mean``", `"median``",
+            ``"minimum``", `"reflect``", ``"symmetric``", ``"wrap``", ``"empty``", ``"<function>``"}
+            The mode to pad data after zooming.
+            See also: https://numpy.org/doc/stable/reference/generated/numpy.pad.html
         align_corners: This only has an effect when mode is
             'linear', 'bilinear', 'bicubic' or 'trilinear'. Default: None.
             See also: https://pytorch.org/docs/stable/nn.functional.html#interpolate
@@ -942,6 +959,7 @@ class RandZoomd(Randomizable, MapTransform):
         min_zoom: Union[Sequence[float], float] = 0.9,
         max_zoom: Union[Sequence[float], float] = 1.1,
         mode: InterpolateModeSequence = InterpolateMode.AREA,
+        padding_mode: NumpyPadModeSequence = NumpyPadMode.EDGE,
         align_corners: Union[Sequence[Optional[bool]], Optional[bool]] = None,
         keep_size: bool = True,
     ) -> None:
@@ -952,6 +970,7 @@ class RandZoomd(Randomizable, MapTransform):
         self.prob = prob
 
         self.mode = ensure_tuple_rep(mode, len(self.keys))
+        self.padding_mode = ensure_tuple_rep(padding_mode, len(self.keys))
         self.align_corners = ensure_tuple_rep(align_corners, len(self.keys))
         self.keep_size = keep_size
 
@@ -973,7 +992,12 @@ class RandZoomd(Randomizable, MapTransform):
             return d
         zoomer = Zoom(self._zoom, keep_size=self.keep_size)
         for idx, key in enumerate(self.keys):
-            d[key] = zoomer(d[key], mode=self.mode[idx], align_corners=self.align_corners[idx])
+            d[key] = zoomer(
+                d[key],
+                mode=self.mode[idx],
+                padding_mode=self.padding_mode[idx],
+                align_corners=self.align_corners[idx],
+            )
         return d
 
 
