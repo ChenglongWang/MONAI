@@ -17,7 +17,7 @@ import torch.nn as nn
 
 from monai.networks.blocks.convolutions import Convolution
 from monai.networks.layers.factories import Act, Norm, split_args
-from monai.networks.layers.factories import Act, Conv, Dropout, Norm, split_args
+
 
 class UnetResBlock(nn.Module):
     """
@@ -163,6 +163,7 @@ class UnetUpBlock(nn.Module):
         out_channels: number of output channels.
         kernel_size: convolution kernel size.
         stride: convolution stride.
+        upsample_kernel_size: convolution kernel size for transposed convolution layers.
         norm_name: [``"batch"``, ``"instance"``, ``"group"``]
             feature normalization type and arguments. In this module, if using ``"group"``,
             `in_channels` should be divisible by 16 (default value for ``num_groups``).
@@ -175,22 +176,23 @@ class UnetUpBlock(nn.Module):
         out_channels: int,
         kernel_size: Union[Sequence[int], int],
         stride: Union[Sequence[int], int],
+        upsample_kernel_size: Union[Sequence[int], int],
         norm_name: str,
     ):
         super(UnetUpBlock, self).__init__()
-        self.stride = stride
+        upsample_stride = upsample_kernel_size
         self.transp_conv = get_conv_layer(
             spatial_dims,
             in_channels,
-            in_channels,
-            kernel_size=kernel_size,
-            stride=stride,
+            out_channels,
+            kernel_size=upsample_kernel_size,
+            stride=upsample_stride,
             conv_only=True,
             is_transposed=True,
         )
         self.conv_block = UnetBasicBlock(
             spatial_dims,
-            in_channels + out_channels,
+            out_channels + out_channels,
             out_channels,
             kernel_size=kernel_size,
             stride=1,
@@ -206,21 +208,11 @@ class UnetUpBlock(nn.Module):
 
 
 class UnetOutBlock(nn.Module):
-    def __init__(self, spatial_dims: int, in_channels: int, out_channels: int, **kwargs):
+    def __init__(self, spatial_dims: int, in_channels: int, out_channels: int):
         super(UnetOutBlock, self).__init__()
-        kernel_size = kwargs.get('kernel_size', 1)
-        stride = kwargs.get('stride',1)
-        bias = kwargs.get('bias',True)
-        conv_only = kwargs.get('conv_only',True)
-        activation = kwargs.get('activation', None)
-
         self.conv = get_conv_layer(
-            spatial_dims, in_channels, out_channels, kernel_size=kernel_size, stride=stride, bias=bias, conv_only=conv_only
+            spatial_dims, in_channels, out_channels, kernel_size=1, stride=1, bias=True, conv_only=True
         )
-        if activation is not None:
-            act_name, act_args = split_args(activation)
-            act_type = Act[act_name]
-            self.conv.add_module("act", act_type(**act_args))
 
     def forward(self, inp):
         out = self.conv(inp)
@@ -261,7 +253,6 @@ def get_conv_layer(
     output_padding = None
     if is_transposed:
         output_padding = get_output_padding(kernel_size, stride, padding)
-
     return Convolution(
         spatial_dims,
         in_channels,

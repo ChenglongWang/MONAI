@@ -10,7 +10,7 @@
 # limitations under the License.
 
 
-from typing import List, Sequence, Union, Optional
+from typing import List, Optional, Sequence, Union
 
 import torch.nn as nn
 
@@ -43,6 +43,7 @@ class DynUNet(nn.Module):
         out_channels: number of output channels.
         kernel_size: convolution kernel size.
         strides: convolution strides for each blocks.
+        upsample_kernel_size: convolution kernel size for transposed convolution layers.
         norm_name: [``"batch"``, ``"instance"``, ``"group"``]
             feature normalization type and arguments.
         deep_supervision: whether to add deep supervision head before output. Defaults to ``True``.
@@ -51,7 +52,7 @@ class DynUNet(nn.Module):
             from the intermediate up sample layers.
         deep_supr_num: number of feature maps that will output during deep supervision head. The
             value should be less than the number of up sample layers. Defaults to 1.
-        block_type: whether to use residual connection based convolution blocks during the network.
+        res_block: whether to use residual connection based convolution blocks during the network.
             Defaults to ``True``.
     """
 
@@ -62,11 +63,11 @@ class DynUNet(nn.Module):
         out_channels: int,
         kernel_size: Sequence[Union[Sequence[int], int]],
         strides: Sequence[Union[Sequence[int], int]],
+        upsample_kernel_size: Sequence[Union[Sequence[int], int]],
         norm_name: str = "instance",
         deep_supervision: bool = True,
         deep_supr_num: int = 1,
-        res_block: bool = True,
-        last_activation: Optional[str] = None
+        res_block: bool = False,
     ):
         super(DynUNet, self).__init__()
         self.spatial_dims = spatial_dims
@@ -74,6 +75,7 @@ class DynUNet(nn.Module):
         self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.strides = strides
+        self.upsample_kernel_size = upsample_kernel_size
         self.norm_name = norm_name
         self.deep_supervision = deep_supervision
         self.conv_block = UnetResBlock if res_block else UnetBasicBlock
@@ -82,7 +84,7 @@ class DynUNet(nn.Module):
         self.downsamples = self.get_downsamples()
         self.bottleneck = self.get_bottleneck()
         self.upsamples = self.get_upsamples()
-        self.output_block = self.get_output_block(0, last_activation=last_activation)
+        self.output_block = self.get_output_block(0)
         self.deep_supervision_heads = self.get_deep_supervision_heads()
         self.deep_supr_num = deep_supr_num
         self.apply(self.initialize_weights)
@@ -147,14 +149,12 @@ class DynUNet(nn.Module):
             self.norm_name,
         )
 
-    def get_output_block(self, idx: int, upsample: int = 0, last_activation: Optional[str] = None):
-        if upsample > 1:
-            return nn.Sequential(UnetOutBlock(self.spatial_dims, self.filters[idx], self.out_channels), 
-                                  nn.UpsamplingBilinear2d(scale_factor=upsample))
-        else:
-            return UnetOutBlock(
-                self.spatial_dims, self.filters[idx], self.out_channels, activation=last_activation
-            )
+    def get_output_block(self, idx: int):
+        return UnetOutBlock(
+            self.spatial_dims,
+            self.filters[idx],
+            self.out_channels,
+        )
 
     def get_downsamples(self):
         inp, out = self.filters[:-2], self.filters[1:-1]
@@ -164,7 +164,8 @@ class DynUNet(nn.Module):
     def get_upsamples(self):
         inp, out = self.filters[1:][::-1], self.filters[:-1][::-1]
         strides, kernel_size = self.strides[1:][::-1], self.kernel_size[1:][::-1]
-        return self.get_module_list(inp, out, kernel_size, strides, UnetUpBlock)
+        upsample_kernel_size = self.upsample_kernel_size[::-1]
+        return self.get_module_list(inp, out, kernel_size, strides, UnetUpBlock, upsample_kernel_size)
 
     def get_module_list(
         self,
@@ -173,22 +174,40 @@ class DynUNet(nn.Module):
         kernel_size: Sequence[Union[Sequence[int], int]],
         strides: Sequence[Union[Sequence[int], int]],
         conv_block: nn.Module,
+        upsample_kernel_size: Optional[Sequence[Union[Sequence[int], int]]] = None,
     ):
         layers = []
-        for in_c, out_c, kernel, stride in zip(in_channels, out_channels, kernel_size, strides):
-            layer = conv_block(
-                self.spatial_dims,
-                in_c,
-                out_c,
-                kernel,
-                stride,
-                self.norm_name,
-            )
-            layers.append(layer)
+        if upsample_kernel_size is not None:
+            for in_c, out_c, kernel, stride, up_kernel in zip(
+                in_channels, out_channels, kernel_size, strides, upsample_kernel_size
+            ):
+                params = {
+                    "spatial_dims": self.spatial_dims,
+                    "in_channels": in_c,
+                    "out_channels": out_c,
+                    "kernel_size": kernel,
+                    "stride": stride,
+                    "norm_name": self.norm_name,
+                    "upsample_kernel_size": up_kernel,
+                }
+                layer = conv_block(**params)
+                layers.append(layer)
+        else:
+            for in_c, out_c, kernel, stride in zip(in_channels, out_channels, kernel_size, strides):
+                params = {
+                    "spatial_dims": self.spatial_dims,
+                    "in_channels": in_c,
+                    "out_channels": out_c,
+                    "kernel_size": kernel,
+                    "stride": stride,
+                    "norm_name": self.norm_name,
+                }
+                layer = conv_block(**params)
+                layers.append(layer)
         return nn.ModuleList(layers)
 
     def get_deep_supervision_heads(self):
-        return nn.ModuleList([self.get_output_block(i + 1, upsample=2**(i+1)) for i in range(len(self.upsamples) - 1)])
+        return nn.ModuleList([self.get_output_block(i + 1) for i in range(len(self.upsamples) - 1)])
 
     @staticmethod
     def initialize_weights(module):

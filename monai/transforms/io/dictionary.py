@@ -192,6 +192,7 @@ class LoadPNGd(LoadDatad):
         self,
         keys: KeysCollection,
         dtype: Optional[np.dtype] = np.float32,
+        grayscale: bool = False,
         meta_key_postfix: str = "meta_dict",
         overwriting: bool = False,
     ) -> None:
@@ -206,7 +207,7 @@ class LoadPNGd(LoadDatad):
             overwriting: whether allow to overwrite existing meta data of same key.
                 default is False, which will raise exception if encountering existing key.
         """
-        loader = LoadPNG(False, dtype)
+        loader = LoadPNG(False, dtype, grayscale)
         super().__init__(keys, loader, meta_key_postfix, overwriting)
 
 
