@@ -233,7 +233,7 @@ def get_acti_layer(act: Union[Tuple[str, Dict], str]):
     return act_type(**act_args)
 
 
-def get_norm_layer(spatial_dims: int, out_channels: int, norm_name: str, num_groups: int = 16):
+def get_norm_layer(spatial_dims: int, out_channels: int, norm_name: str, num_groups: int = 4):
     if norm_name not in ["batch", "instance", "group"]:
         raise ValueError(f"Unsupported normalization mode: {norm_name}")
     else:

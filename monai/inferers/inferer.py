@@ -59,6 +59,25 @@ class SimpleInferer(Inferer):
         """
         return network(inputs)
 
+class UnifiedInferer(Inferer):
+    """
+    UnifiedInferer is an inference method that run model forward().
+    Different from SimpleInferer, UnifiedInferer return losses, which means model should contain loss_fn.
+
+    """
+    def __init__(self) -> None:
+        Inferer.__init__(self)
+
+    def __call__(self, inputs: torch.Tensor, targets: torch.Tensor, network: torch.nn.Module):
+        """Unified callable function API of Inferers.
+
+        Args:
+            inputs: model input data for inference.
+            target: model target data for loss computation.
+            network: target model to execute inference.
+
+        """
+        return network(inputs, targets)
 
 class SlidingWindowInferer(Inferer):
     """

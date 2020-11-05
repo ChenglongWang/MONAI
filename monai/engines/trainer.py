@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from monai.engines.utils import CommonKeys as Keys
 from monai.engines.utils import GanKeys, default_make_latent, default_prepare_batch
 from monai.engines.workflow import Workflow
-from monai.inferers import Inferer, SimpleInferer
+from monai.inferers import Inferer, SimpleInferer, UnifiedInferer
 from monai.transforms import Transform
 from monai.utils import exact_version, optional_import
 
@@ -312,7 +312,7 @@ class RcnnTrainer(Trainer):
         loss_functions: Sequence[Callable],
         prepare_batch: Callable = default_prepare_batch,
         iteration_update: Optional[Callable] = None,
-        inferer: Inferer = SimpleInferer(),
+        inferer: Inferer = UnifiedInferer(),
         post_transform: Optional[Transform] = None,
         key_train_metric: Optional[Dict[str, Metric]] = None,
         additional_metrics: Optional[Dict[str, Metric]] = None,
@@ -342,24 +342,24 @@ class RcnnTrainer(Trainer):
         if batchdata is None:
             raise ValueError("Must provide batch data for current iteration.")
 
-        images, labels, roi_bboxs, roi_labels = self.prepare_batch(batchdata)
-        images, labels = images.to(engine.state.device), labels.to(engine.state.device)
-        roi_bboxs, roi_labels = roi_bboxs.to(engine.state.device), roi_labels.to(engine.state.device)
+        images, targets = self.prepare_batch(batchdata)
+
+        images = images.to(engine.state.device)
+        targets = [target.to(engine.state.device) for target in targets]
 
         self.network.train()
         self.optimizer.zero_grad()
         if self.amp and self.scaler is not None:
             with torch.cuda.amp.autocast():
-                detections, class_logits, pred_deltas, seg_logits = self.inferer(images, self.network)
-                for loss_fn in self.loss_functions:
-                    loss = loss_fn(predictions, targets).mean()
-            self.scaler.scale(loss).backward()
+                predictions, loss_dict = self.inferer(images, targets, self.network)
+                losses = sum(loss for loss in loss_dict.values())
+            self.scaler.scale(losses).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
         else:
-            detections, class_logits, pred_deltas, seg_logits = self.inferer(images, self.network)
-            loss = self.loss_functions(predictions, targets).mean()
-            loss.backward()
+            predictions, loss_dict = self.inferer(images, targets, self.network)
+            losses = sum(loss for loss in loss_dict.values())
+            losses.backward()
             self.optimizer.step()
 
-        return {Keys.IMAGE: inputs, Keys.LABEL: targets, Keys.PRED: predictions, Keys.LOSS: loss.item()}
+        return {Keys.IMAGE: images, Keys.LABEL: targets, Keys.PRED: predictions, Keys.LOSS: losses.item()}

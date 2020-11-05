@@ -14,7 +14,7 @@ import itertools
 import random
 from ast import literal_eval
 from distutils.util import strtobool
-from typing import Any, Callable, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Optional, Sequence, Tuple, Union, List
 
 import numpy as np
 import torch
@@ -65,6 +65,15 @@ def ensure_tuple(vals: Any) -> Tuple[Any, ...]:
         vals = (vals,)
 
     return tuple(vals)
+
+def ensure_list(vals: Any):
+    """
+    Returns a list of `vals`.
+    """
+    if not issequenceiterable(vals):
+        vals = [vals,]
+
+    return list(vals)
 
 
 def ensure_tuple_size(tup: Any, dim: int, pad_val: Any = 0) -> Tuple[Any, ...]:
