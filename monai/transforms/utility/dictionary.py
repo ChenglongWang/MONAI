@@ -573,6 +573,7 @@ AddChannelD = AddChannelDict = AddChanneld
 RepeatChannelD = RepeatChannelDict = RepeatChanneld
 CastToTypeD = CastToTypeDict = CastToTyped
 ToTensorD = ToTensorDict = ToTensord
+ToNumpyD = ToNumpyDict = ToNumpyd
 DeleteItemsD = DeleteItemsDict = DeleteItemsd
 SqueezeDimD = SqueezeDimDict = SqueezeDimd
 DataStatsD = DataStatsDict = DataStatsd

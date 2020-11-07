@@ -21,6 +21,7 @@ import numpy as np
 import h5py
 
 from monai.config import KeysCollection
+from monai.utils import ensure_tuple
 from monai.data.image_reader import ImageReader
 from monai.transforms.compose import MapTransform
 from monai.transforms.io.array import LoadImage, LoadNifti, LoadNumpy, LoadPNG
@@ -42,6 +43,7 @@ class LoadImaged(MapTransform):
         reader: Optional[ImageReader] = None,
         dtype: Optional[np.dtype] = np.float32,
         meta_key_postfix: str = "meta_dict",
+        drop_meta_keys: Optional[Union[Sequence[str],str]] = None,
         overwriting: bool = False,
     ) -> None:
         """
@@ -54,6 +56,7 @@ class LoadImaged(MapTransform):
             meta_key_postfix: use `key_{postfix}` to store the metadata of the nifti image,
                 default is `meta_dict`. The meta data is a dictionary object.
                 For example, load nifti file for `image`, store the metadata into `image_meta_dict`.
+            drop_meta_keys: specified keys to drop. This will help to fix the collate error.
             overwriting: whether allow to overwrite existing meta data of same key.
                 default is False, which will raise exception if encountering existing key.
         """
@@ -62,6 +65,7 @@ class LoadImaged(MapTransform):
         if not isinstance(meta_key_postfix, str):
             raise TypeError(f"meta_key_postfix must be a str but is {type(meta_key_postfix).__name__}.")
         self.meta_key_postfix = meta_key_postfix
+        self.drop_meta_keys = drop_meta_keys
         self.overwriting = overwriting
 
     def register(self, reader: ImageReader):
@@ -82,6 +86,9 @@ class LoadImaged(MapTransform):
             key_to_add = f"{key}_{self.meta_key_postfix}"
             if key_to_add in d and not self.overwriting:
                 raise KeyError(f"Meta data with key {key_to_add} already exists and overwriting=False.")
+            if self.drop_meta_keys is not None:
+                for k in ensure_tuple(self.drop_meta_keys):
+                    data[1].pop(k, None)
             d[key_to_add] = data[1]
         return d
 

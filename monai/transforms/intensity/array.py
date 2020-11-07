@@ -966,3 +966,4 @@ class RandNonlinear(Randomizable, Transform):
         
         nonlinear_x = np.interp(image, xvals, yvals)
         return nonlinear_x
+

@@ -78,10 +78,15 @@ class LrScheduleHandler:
         Args:
             engine: Ignite Engine, it can be a trainer, validator or evaluator.
         """
-        args = ensure_tuple(self.step_transform(engine))
-        self.lr_scheduler.step(*args)
-        if self.print_lr:
-            self.logger.info(f"Current learning rate: {self.lr_scheduler._last_lr[0]}")  # type: ignore[union-attr]
+        try:
+            args = ensure_tuple(self.step_transform(engine))
+        except KeyError as e:
+            self.logger.warn('Cannot get specified key from the step_transform. Skip lr scheduler.')
+        else:
+            self.lr_scheduler.step(*args)
+        
+            if self.print_lr:
+                self.logger.info(f"Current learning rate: {self.lr_scheduler._last_lr[0]}")  # type: ignore[union-attr]
 
 
 class LrScheduleTensorboardHandler(LrScheduleHandler):
@@ -108,10 +113,15 @@ class LrScheduleTensorboardHandler(LrScheduleHandler):
         self.writer = summary_writer
 
     def __call__(self, engine):
-        args = ensure_tuple(self.step_transform(engine))
-        self.lr_scheduler.step(*args)
-        if self.print_lr:
-            self.logger.info(f"Current learning rate: {self.lr_scheduler._last_lr[0]}")
-        if self.writer is not None:
-            self.writer.add_scalar("Learning_rate", self.lr_scheduler._last_lr[0], engine.state.iteration)
+        try:
+            args = ensure_tuple(self.step_transform(engine))
+        except KeyError as e:
+            self.logger.warn('Cannot get specified key from the step_transform. Skip lr scheduler.')
+        else:
+            self.lr_scheduler.step(*args)
+
+            if self.print_lr:
+                self.logger.info(f"Current learning rate: {self.lr_scheduler._last_lr[0]}")
+            if self.writer is not None:
+                self.writer.add_scalar("Learning_rate", self.lr_scheduler._last_lr[0], engine.state.iteration)
 

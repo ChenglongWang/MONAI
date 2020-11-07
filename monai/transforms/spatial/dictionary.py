@@ -36,6 +36,7 @@ from monai.transforms.spatial.array import (
     Rotate90,
     Spacing,
     Zoom,
+    Transpose,
     _torch_interp,
 )
 from monai.transforms.utils import create_grid
@@ -1026,6 +1027,26 @@ class FixedResized(MapTransform):
             d[key] = self.resizer(d[key], mode=self.mode[idx], align_corners=self.align_corners[idx])
         return d
 
+class Transposed(MapTransform):
+    """
+    Dict-based version :py:class:`monai.transforms.Transpose`.
+
+    Args:
+        keys: Keys to pick data for transformation.
+    """
+    def __init__(
+        self,
+        keys: KeysCollection,
+        axes: Optional[Sequence[int]] = None,
+    ) -> None:
+        super().__init__(keys)
+        self.transposer = Transpose(axes=axes)
+    
+    def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
+        d = dict(data)
+        for idx, key in enumerate(self.keys):
+            d[key] = self.transposer(d[key])
+        return d
 
 SpacingD = SpacingDict = Spacingd
 OrientationD = OrientationDict = Orientationd
@@ -1041,3 +1062,5 @@ RotateD = RotateDict = Rotated
 RandRotateD = RandRotateDict = RandRotated
 ZoomD = ZoomDict = Zoomd
 RandZoomD = RandZoomDict = RandZoomd
+FixedResizeD = FixedResizeDict = FixedResized
+TransposeD = TransposeDict = Transposed
