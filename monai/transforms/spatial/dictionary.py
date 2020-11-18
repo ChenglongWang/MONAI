@@ -137,7 +137,7 @@ class Spacingd(MapTransform):
             meta_data = d[f"{key}_{self.meta_key_postfix}"]
             # resample array of each corresponding key
             # using affine fetched from d[affine_key]
-            d[key], _, new_affine = self.spacing_transform(
+            d[key], original_affine, new_affine = self.spacing_transform(
                 data_array=d[key],
                 affine=meta_data["affine"],
                 mode=self.mode[idx],
@@ -147,6 +147,7 @@ class Spacingd(MapTransform):
             )
             # set the 'affine' key
             meta_data["affine"] = new_affine
+            meta_data["original_affine"] = original_affine
         return d
 
 

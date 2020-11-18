@@ -76,7 +76,7 @@ def predict_segmentation(
         if logits.shape[1] == 1:
             warnings.warn("single channel prediction, `mutually_exclusive=True` ignored, use threshold instead.")
             return (cast(torch.Tensor, logits >= threshold)).int()
-        return logits.argmax(1, keepdim=True)
+        return logits.argmax(1, keepdim=False)
 
 
 def normalize_transform(

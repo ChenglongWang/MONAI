@@ -11,6 +11,7 @@
 
 from typing import Dict, Optional, Union
 
+import os
 import numpy as np
 import torch
 
@@ -32,6 +33,7 @@ class NiftiSaver:
         output_dir: str = "./",
         output_postfix: str = "seg",
         output_ext: str = ".nii.gz",
+        output_name_uplevel: int = 0,
         resample: bool = True,
         mode: Union[GridSampleMode, str] = GridSampleMode.BILINEAR,
         padding_mode: Union[GridSamplePadMode, str] = GridSamplePadMode.BORDER,
@@ -61,6 +63,7 @@ class NiftiSaver:
         self.output_dir = output_dir
         self.output_postfix = output_postfix
         self.output_ext = output_ext
+        self.output_name_uplevel = output_name_uplevel
         self.resample = resample
         self.mode: GridSampleMode = GridSampleMode(mode)
         self.padding_mode: GridSamplePadMode = GridSamplePadMode(padding_mode)
@@ -92,6 +95,8 @@ class NiftiSaver:
             :py:meth:`monai.data.nifti_writer.write_nifti`
         """
         filename = meta_data["filename_or_obj"] if meta_data else str(self._data_index)
+        for _ in range(self.output_name_uplevel):
+            filename = os.path.dirname(filename)
         self._data_index += 1
         original_affine = meta_data.get("original_affine", None) if meta_data else None
         affine = meta_data.get("affine", None) if meta_data else None
