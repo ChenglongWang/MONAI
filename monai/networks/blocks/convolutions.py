@@ -82,6 +82,7 @@ class Convolution(nn.Sequential):
         bias: bool = True,
         conv_only: bool = False,
         is_transposed: bool = False,
+        is_prunable: bool = False,
         padding: Optional[Union[Sequence[int], int]] = None,
         output_padding: Optional[Union[Sequence[int], int]] = None,
     ) -> None:
@@ -92,7 +93,10 @@ class Convolution(nn.Sequential):
         self.is_transposed = is_transposed
         if padding is None:
             padding = same_padding(kernel_size, dilation)
-        conv_type = Conv[Conv.CONVTRANS if is_transposed else Conv.CONV, dimensions]
+        if is_prunable:
+            conv_type = Conv[Conv.PRUNABLE_CONVTRANS if is_transposed else Conv.PRUNABLE_CONV, dimensions]
+        else:
+            conv_type = Conv[Conv.CONVTRANS if is_transposed else Conv.CONV, dimensions]
 
         if is_transposed:
             if output_padding is None:

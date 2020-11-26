@@ -63,6 +63,7 @@ can be parameterized with the factory name and the arguments to pass to the crea
 from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
 
 import torch.nn as nn
+from monai.networks.layers.prunable_conv import *
 
 __all__ = ["LayerFactory", "Dropout", "Norm", "Act", "Conv", "Pool", "Pad", "split_args"]
 
@@ -261,6 +262,15 @@ def convtrans_factory(dim: int) -> Type[Union[nn.ConvTranspose1d, nn.ConvTranspo
     types = (nn.ConvTranspose1d, nn.ConvTranspose2d, nn.ConvTranspose3d)
     return types[dim - 1]
 
+@Conv.factory_function("prunable_conv")
+def prunableconv_factory(dim: int) -> Type[Union[PrunableConv1d, PrunableConv2d, PrunableConv3d]]:
+    types = (PrunableConv1d, PrunableConv2d, PrunableConv3d)
+    return types[dim - 1]
+
+@Conv.factory_function("prunable_convtrans")
+def prunableconv_factory(dim: int) -> Type[Union[PrunableDeconv1d, PrunableDeconv2d, PrunableDeconv3d]]:
+    types = (PrunableDeconv1d, PrunableDeconv2d, PrunableDeconv3d)
+    return types[dim - 1]
 
 @Pool.factory_function("max")
 def maxpooling_factory(dim: int) -> Type[Union[nn.MaxPool1d, nn.MaxPool2d, nn.MaxPool3d]]:
