@@ -268,7 +268,7 @@ def prunableconv_factory(dim: int) -> Type[Union[PrunableConv1d, PrunableConv2d,
     return types[dim - 1]
 
 @Conv.factory_function("prunable_convtrans")
-def prunableconv_factory(dim: int) -> Type[Union[PrunableDeconv1d, PrunableDeconv2d, PrunableDeconv3d]]:
+def prunableconvtrans_factory(dim: int) -> Type[Union[PrunableDeconv1d, PrunableDeconv2d, PrunableDeconv3d]]:
     types = (PrunableDeconv1d, PrunableDeconv2d, PrunableDeconv3d)
     return types[dim - 1]
 

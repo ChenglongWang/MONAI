@@ -147,7 +147,6 @@ class Spacingd(MapTransform):
             )
             # set the 'affine' key
             meta_data["affine"] = new_affine
-            meta_data["original_affine"] = original_affine
         return d
 
 
@@ -205,7 +204,7 @@ class Orientationd(MapTransform):
         d = dict(data)
         for key in self.keys:
             meta_data = d[f"{key}_{self.meta_key_postfix}"]
-            d[key], _, new_affine = self.ornt_transform(d[key], affine=meta_data["affine"])
+            d[key], original_affine, new_affine = self.ornt_transform(d[key], affine=meta_data["affine"])
             meta_data["affine"] = new_affine
         return d
 
