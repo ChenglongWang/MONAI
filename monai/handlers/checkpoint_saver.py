@@ -85,6 +85,7 @@ class CheckpointSaver:
         key_metric_mode: str = 'max',
         key_metric_n_saved: int = 1,
         key_metric_filename: Optional[str] = None,
+        key_metric_save_after_epoch: int = 0,
         epoch_level: bool = True,
         save_interval: int = 0,
         n_saved: Optional[int] = None,
@@ -100,6 +101,7 @@ class CheckpointSaver:
         self.epoch_level = epoch_level
         self.save_interval = save_interval
         self._final_checkpoint = self._key_metric_checkpoint = self._interval_checkpoint = None
+        self.key_metric_save_after_epoch = key_metric_save_after_epoch
         self._name = name
 
         class _DiskSaver(DiskSaver):
@@ -137,7 +139,7 @@ class CheckpointSaver:
 
         if save_key_metric:
 
-            def _score_func(engine: Engine):
+            def _score_func(engine: Engine, save_after_epoch=0):
                 if isinstance(key_metric_name, str):
                     metric_name = key_metric_name
                 elif hasattr(engine.state, "key_metric_name") and isinstance(engine.state.key_metric_name, str):
@@ -233,7 +235,8 @@ class CheckpointSaver:
             engine: Ignite Engine, it can be a trainer, validator or evaluator.
         """
         assert callable(self._key_metric_checkpoint), "Error: _key_metric_checkpoint function not specified."
-        self._key_metric_checkpoint(engine)
+        if engine.state.epoch > self.key_metric_save_after_epoch:
+            self._key_metric_checkpoint(engine)
 
     def interval_completed(self, engine: Engine) -> None:
         """Callback for train epoch/iteration completed Event.

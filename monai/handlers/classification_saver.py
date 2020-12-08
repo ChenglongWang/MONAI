@@ -35,7 +35,6 @@ class ClassificationSaver:
         batch_transform: Callable = lambda x: x,
         output_transform: Callable = lambda x: x,
         name: Optional[str] = None,
-        save_img: Optional[bool] = False,
     ) -> None:
         """
         Args:
@@ -58,8 +57,6 @@ class ClassificationSaver:
 
         self.logger = logging.getLogger(name)
         self._name = name
-        self.save_img = save_img
-        self.img_saver = PNGSaver(output_dir, output_postfix='cls',scale=255)
 
     def attach(self, engine: Engine) -> None:
         """
@@ -82,10 +79,7 @@ class ClassificationSaver:
         """
         meta_data = self.batch_transform(engine.state.batch)
         engine_output = self.output_transform(engine.state.output)
-        if not self.save_img:
-            self.saver.save_batch(engine_output, meta_data)
-        else:
-            meta = { 'filename_or_obj' : [str(int(pred))+'-'+str(time.time()*100) for pred in engine_output[1]] }
-            self.img_saver.save_batch(engine_output[0], meta)
+        self.saver.save_batch(engine_output, meta_data)
+
 
         

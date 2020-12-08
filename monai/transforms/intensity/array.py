@@ -485,7 +485,7 @@ class MaskIntensity(Transform):
 
     """
 
-    def __init__(self, mask_data: np.ndarray) -> None:
+    def __init__(self, mask_data: Optional[np.ndarray]) -> None:
         self.mask_data = mask_data
 
     def __call__(self, img: np.ndarray, mask_data: Optional[np.ndarray] = None) -> np.ndarray:
